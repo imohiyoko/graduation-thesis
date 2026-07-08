@@ -1,0 +1,144 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% 卒論サンプル 2015.10.26, ... 2024.12.13 改 I. (template author)
+%%・ラベルを使っているので TeX に2回かけること！
+%% （T2P または T2R ボタン）
+%%・「titlepage_a4j.tex」と「卒業論文閲覧承諾書.pdf」ファイルを同じフォルダに置いておくこと！
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\documentclass[a4j,12pt]{jarticle}
+\usepackage{amsmath}          % AmS-LaTeX を使うなら
+\usepackage{cases}        % numcases 環境のため
+\usepackage{amsthm}         % 定理環境のため
+\usepackage{bm}           % もしエラーになるならこの行は削除してもよい.
+\usepackage{amssymb}          % AmS-LaTeX を使うなら
+%\usepackage{type1cm}         % タイトルに数式を使うならここを有効にして！
+
+\usepackage[dvipdfmx]{graphicx}
+\usepackage{booktabs}         % \toprule, \midrule, \bottomrule を使うために必要
+\usepackage{float}
+
+%% 定理環境の定義
+% テキストp.46「§2.4.2 定理環境の定義」参照
+\theoremstyle{definition}
+\newtheorem{theorem}{定理}[section]
+%\newtheorem{theorem}{定理}   % セクション番号を付けないならこちら
+\newtheorem*{theorem*}{定理}  % * 付きは定理番号が付かない
+\newtheorem{lemma}[theorem]{補題}
+\newtheorem{corollary}[theorem]{系}
+\newtheorem{definition}[theorem]{定義}
+\newtheorem{example}[theorem]{例}
+
+\newtheorem{proof_sketch}{証明の概略}
+
+%% 証明環境
+\renewcommand{\proofname}{(証明)}
+\renewcommand{\topfraction}{1.0}    % ページ上部の図の割合（最大100%）
+\renewcommand{\bottomfraction}{1.0} % ページ下部の図の割合（最大100%）
+\renewcommand{\textfraction}{0.0}   % 最小限必要な本文の割合（0%でもOK）
+\renewcommand{\floatpagefraction}{1.0} % 図専用ページの最小割合
+% 必要ならば{(証明)}を{\textbf{証明.}}等と変更することもできる.
+\makeatletter
+\renewenvironment{proof}[1][\proofname]{\par
+  \pushQED{\qed}
+  \normalfont \topsep6\p@\@plus6\p@\relax
+  \trivlist
+  \item[\hskip\labelsep #1]\ignorespaces
+}{
+  \popQED\endtrivlist\@endpefalse % 証明終了の記号□を最後に付ける
+% \endtrivlist\@endpefalse        % □を付けないようにしたければこちら
+}
+\makeatother
+% 数式の番号をセクション番号なしにしたければ, 次の式をコメントアウト(削除)する.
+% （amsmath を仮定している）
+\numberwithin{equation}{section}
+
+%% 関数記号の定義例（amsmath を仮定している）
+%% 添え字を使う命令には * を付ける：
+\DeclareMathOperator{\End}{End}
+\DeclareMathOperator{\Ker}{Ker}
+
+%% 数式中の太字とブラックボードボールド体の定義
+% 数式中の太字は $ \bm{v} $ などとすればよい.
+% 複素数体は $ \CC $, 整数全体は $ \ZZ $ とかける.
+\providecommand{\bm}[1]{\boldsymbol{#1}}
+\providecommand{\bmdefine}[2]{\newcommand{#1}{\bm{#2}}}
+\newcommand{\CC}{\mathbb{C}}
+\newcommand{\RR}{\mathbb{R}}
+\newcommand{\QQ}{\mathbb{Q}}
+\newcommand{\ZZ}{\mathbb{Z}}
+% よく使う太字はプリアンブル(この近所)に
+% \bmdefine{\bv}{v}
+% 等と定義しておいて, 本文中は $ \bv $ 等とすることもできる.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% サンプルの卒業年度, 論文題目, 指導教員名を消して
+%% 自分の卒業年度, 論文題目, 氏名, 指導教員名をかくこと.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newcommand{\卒業年度}{7}
+\newcommand{\論文題目}{最良近似多項式の導出と\\アルゴリズム}    %卒論テーマ
+\newcommand{\氏名}{imohiyoko}        %名前
+\newcommand{\指導教員}{（指導教員）}    %指導教員名
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\title{\論文題目}
+\author{\氏名}
+\date{} % 日付を表示しない場合は空にする
+
+\begin{document}
+
+\newpage  %% 改ページ ==================================================
+\include{titlepage_a4j} % 表紙を出力する
+\include{titlepage_a4j} % 表紙を出力する
+
+\pagenumbering{roman}   % ページ番号をローマ数字にする.
+
+% =========================================================
+% 前付 (概要・目次)
+% =========================================================
+
+% 概要 (Abstract)
+% ページ番号がローマ数字の間に配置します
+\input{chapters/00}
+
+% 目次
+\tableofcontents
+\clearpage
+
+% =========================================================
+% 本文 各セクションは別ファイルに分割している
+% 例 : chapters/01, chapters/02, ...
+% =========================================================
+
+\pagenumbering{arabic} % ページ番号を算用数字(1,2,3...)に戻す
+
+% 第1章 ラグランジュ補間多項式とその評価
+\input{chapters/01}
+
+% 第2章 最良近似多項式の理論
+\input{chapters/02}
+
+% 第3章 Remesアルゴリズムによる最良近似多項式の計算
+\input{chapters/03}
+
+% 第4章 Brent法の紹介
+\input{chapters/04}
+
+% 第5章 Brent法を用いたRemesアルゴリズム
+\input{chapters/05}
+
+% 第6章 考察
+\input{chapters/06}
+
+% 第7章 結論
+\input{chapters/07}
+
+% =========================================================
+% 参考文献・謝辞
+% =========================================================
+\begin{thebibliography}{9}
+  \bibitem{suchikaiseki-nyumon} 齊藤宣一, ``数値解析入門'', 東京大学出版会, (2012年)
+  \bibitem{seminar-note} 杉原正顯 室田一雄, ``数値計算法の数理'', 岩波書店, (1994年)
+  \bibitem{brent-original} William H.Press, ``Numerical Recipes in C'', 技術評論社, (1993)
+  \bibitem{kiefer1953} J. Kiefer, ``Sequential Minimax Search for a Maximum'', Proceedings of the American Mathematical Society, Vol. 4, No. 3, pp. 502-506, (1953)
+\end{thebibliography}
+
+\end{document}

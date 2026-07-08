@@ -1,0 +1,74 @@
+\section{黄金分割法}
+
+%-----------------------------------------------------------
+% 1. 黄金分割法
+%-----------------------------------------------------------
+\begin{frame}
+    \frametitle{黄金分割法の歴史}
+    黄金分割法の原理に基づく探索手順は、1953年にKieferの論文「Sequential Minimax Search for a Maximum」の中で提案されました。
+    この論文の主題は観測回数が固定されたときフィボナッチ数を用いた探索法でしたが、
+    黄金分割法も同時に紹介されました。
+\end{frame}
+
+\input{material/kiefer/output/frames}
+
+
+\input{material/golden/output/slide-animation}
+
+\begin{frame}
+\frametitle{黄金分割法の収束性}
+\section*{1. 新しい点の位置関係の定義}
+極小を囲う3点 $a < b < c$ について、比率 $W$ と $Z$ を定義します。
+\begin{itemize}
+    \item $W = \frac{b-a}{c-a}$
+    \item $1-W = \frac{c-b}{c-a}$
+\end{itemize}
+
+\centering
+\vspace{0.2cm}
+\includegraphics[width=0.7\textwidth]{material/convergence/output/diagram1_points.png}
+\end{frame}
+
+\begin{frame}
+\frametitle{黄金分割比の導出（2）}
+\section*{2. 最悪ケースの縮小率最適化}
+新しい点 $x$ の位置を、最悪ケースの縮小率を最適化するために決定します：
+\begin{itemize}
+    \item 条件: $ W+Z = 1-W $
+    \item 導出: $ Z = 1 - 2W $
+\end{itemize}
+
+\centering
+\vspace{0.2cm}
+\includegraphics[width=0.7\textwidth]{material/convergence/output/diagram2_optimization.png}
+\end{frame}
+
+\begin{frame}
+\frametitle{黄金分割比の導出（3）}
+\section*{3. スケール相似性}
+新しい区間でも同じ比率を保つという相似性の原理：
+\begin{itemize}
+    \item 相似条件: $ \frac{Z}{1-W} = W $
+    \item 新区間と元区間の比率が常に等しい
+\end{itemize}
+
+\centering
+\vspace{0.2cm}
+\includegraphics[width=0.7\textwidth]{material/convergence/output/diagram3_similarity.png}
+\end{frame}
+
+\begin{frame}
+\frametitle{黄金分割比の導出（4）・収束性}
+\section*{4. 黄金分割比と収束率}
+比率条件より、以下の方程式を得ます：
+\begin{itemize}
+    \item 二次方程式: $ W^2 - 3W + 1 = 0 $
+    \item 解: $ W = \frac{3 - \sqrt{5}}{2} \approx 0.38197 $
+    \item 黄金比: $ \phi = \frac{\sqrt{5}-1}{2} \approx 0.618 $
+    \item 収束率: 各ステップで区間は $\phi$ 倍に縮小（1次収束）
+\end{itemize}
+
+\centering
+\vspace{0.2cm}
+\includegraphics[width=0.7\textwidth]{material/convergence/output/diagram4_convergence.png}
+\end{frame}

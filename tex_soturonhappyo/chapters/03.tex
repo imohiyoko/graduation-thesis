@@ -1,0 +1,48 @@
+%===========================================================
+% 3. Brent法
+%===========================================================
+\section{黄金分割法と放物線補間の融合}
+
+\begin{frame}
+ \frametitle{Brent法のコンセプト}
+ 
+ \textbf{基本的な考え方:}
+  各反復で「どちらの戦略を使うか」を判定
+  \begin{itemize}
+   \item 放物線補間が信頼できそう $\Rightarrow$ 使う
+   \item そうでない $\Rightarrow$ 黄金分割に切り替え
+ \end{itemize}
+\end{frame}
+\begin{frame}
+  常に3つの良い候補点 $(x, w, v)$ と 極値が必ず存在する区間 $[a^*, b^*]$ を保持
+  \begin{itemize}
+   \item $x$：現在の最良点（最も良い関数値）
+   \item $w$：2番目に良い点
+   \item $v$：3番目に良い点（または直前の$w$）
+   \item $a^*$：極値が存在する区間の左端点 
+   \item $b^*$：極値が存在する区間の右端点
+  \end{itemize}
+  
+  条件によって二つの手法を取る
+  \begin{itemize}
+   \item  $x,w,v$ を用いて放物線補間で次の点を探す
+   \item  $a^*,x ,b^*$ と黄金分割で堅実さを保証
+  \end{itemize}
+\end{frame}
+
+\begin{frame}
+ \frametitle{Brent法：強制二分条件}
+
+ \textbf{放物線補間を採用するための判断条件:}
+ 前々回の$x$から試みた移動距離 $e$、今回の放物線補間による軸と現在の$x$との距離を $d$ とするとき、
+ 以下を満たさなければならない：
+ 
+ \begin{tcolorbox}[colback=red!10!white, colframe=red!75!black, title=強制二分条件]
+  \begin{equation*}
+   |d| < \frac{1}{2}|e|
+  \end{equation*}
+ \end{tcolorbox}
+\end{frame}
+
+%% Brent法の収束過程のグラフをここに貼る
+\input{material/brent/output/slide_brent}

@@ -1,0 +1,524 @@
+package main
+
+import (
+	"fmt"
+	"image/color"
+	"log"
+	"math"
+	"strings"
+
+	"gonum.org/v1/plot"
+	"gonum.org/v1/plot/plotter"
+	"gonum.org/v1/plot/vg"
+	"gonum.org/v1/plot/vg/draw"
+)
+
+// ==========================================
+// ターゲット関数 & パラメータ設定
+// ==========================================
+
+// targetFunction は最小化の対象となる関数です．
+// f(x) = -(cos(2x) + x(x-2)(x-6)/3)
+func targetFunction(x float64) float64 {
+	return -(math.Cos(2.0*x) + x*(x-2.0)*(x-6.0)/3.0)
+}
+
+// NewDefaultConfig はデフォルト設定を返します
+// 探索範囲やグラフ描画のパラメータをここで変更してください
+func NewDefaultConfig() Config {
+	return Config{
+		// Brent法の探索設定
+		SearchMin:     -2.5,
+		SearchMax:     2.5,
+		BrentTol:      1e-7,
+		BrentMaxIters: 50,
+
+		// グラフ描画設定（初期範囲）
+		PlotXMin:    -2.5,
+		PlotXMax:    2.5,
+		PlotYMin:    -4.0,
+		PlotYMax:    4.0,
+		PlotSamples: 1000, // グラフ描画のサンプル数
+	}
+}
+
+// ==========================================
+// データ構造体 & 型定義
+// ==========================================
+
+// Config は探索と描画の設定を保持する構造体です
+type Config struct {
+	SearchMin     float64
+	SearchMax     float64
+	BrentTol      float64
+	BrentMaxIters int
+
+	PlotXMin    float64
+	PlotXMax    float64
+	PlotYMin    float64
+	PlotYMax    float64
+	PlotSamples int
+}
+
+// VizIterData は各反復ステップの状態を記録する構造体です
+type VizIterData struct {
+	Iter   int
+	A, B   float64
+	X1, F1 float64 // Best
+	X2, F2 float64 // Second best
+	X3, F3 float64 // Third best
+	Method string
+}
+
+// VizResult は最適化の最終結果です
+type VizResult struct {
+	X          float64
+	F          float64
+	Iterations int
+}
+
+// ==========================================
+// メインロジック
+// ==========================================
+
+func main() {
+	var history []VizIterData
+	cfg := NewDefaultConfig()
+
+	// コールバック関数の定義
+	recorder := func(d VizIterData) {
+		history = append(history, d)
+		width := d.B - d.A
+		fmt.Printf("[#%2d] %-20s Range=[%.5f, %.5f] Width=%.5e BestX=%.6f\n",
+			d.Iter, d.Method, d.A, d.B, width, d.X1)
+	}
+
+	fmt.Println("Brent法による最適化(Visualization)を開始します...")
+
+	// 最適化実行
+	res, err := BrentMinViz(targetFunction, cfg.SearchMin, cfg.SearchMax, cfg.BrentTol, cfg.BrentMaxIters, recorder)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Printf("\n=== 最終結果 ===\n最適解 X = %.10f\n最小値 F = %.10f\n反復数   = %d\n", res.X, res.F, res.Iterations)
+
+	// プロット生成
+	fmt.Println("\nグラフ画像を生成中...")
+
+	// 現在の表示範囲（状態として保持）
+	curViewXMin, curViewXMax := cfg.PlotXMin, cfg.PlotXMax
+	curViewYMin, curViewYMax := cfg.PlotYMin, cfg.PlotYMax
+
+	for _, data := range history {
+		// --- X軸の範囲更新ロジック (ズームインあり) ---
+		// 探索範囲 [min(A,B), max(A,B)]
+		tXMin, tXMax := data.A, data.B
+		if tXMin > tXMax {
+			tXMin, tXMax = tXMax, tXMin
+		}
+		curViewXMin, curViewXMax = updateViewRangeX(tXMin, tXMax, curViewXMin, curViewXMax)
+
+		// --- Y軸の範囲更新ロジック (固定・拡張のみ) ---
+		vals := []float64{data.F1, data.F2, data.F3}
+		tYMin, tYMax := vals[0], vals[0]
+		for _, v := range vals {
+			if v < tYMin {
+				tYMin = v
+			}
+			if v > tYMax {
+				tYMax = v
+			}
+		}
+
+		// はみ出しチェックと拡張 (余白を少し持たせる)
+		const yMargin = 0.5
+		if tYMin < curViewYMin {
+			curViewYMin = tYMin - yMargin
+		}
+		if tYMax > curViewYMax {
+			curViewYMax = tYMax + yMargin
+		}
+
+		// プロット保存
+		if err := saveStepPlot(targetFunction, data, cfg, curViewXMin, curViewXMax, curViewYMin, curViewYMax); err != nil {
+			log.Printf("Step %d のプロット保存に失敗: %v", data.Iter, err)
+		}
+	}
+	fmt.Println("ステップごとのグラフ生成完了")
+
+	if err := saveIntervalPlot(history, cfg); err != nil {
+		log.Printf("全体推移図の保存に失敗: %v", err)
+	} else {
+		fmt.Println("全体推移図生成完了 (brent-interval.png)")
+	}
+}
+
+// ==========================================
+// プロット関連関数
+// ==========================================
+
+// updateViewRangeX はX軸専用の表示範囲計算ロジックです．
+func updateViewRangeX(targetMin, targetMax, currentMin, currentMax float64) (float64, float64) {
+	targetSpan := targetMax - targetMin
+	currentSpan := currentMax - currentMin
+	targetCenter := (targetMin + targetMax) / 2.0
+
+	// 1. はみ出しチェック
+	isOut := targetMin < currentMin || targetMax > currentMax
+
+	// 2. 縮小しすぎチェック (1/12 ルール)
+	isTooSmall := false
+	if currentSpan > 0 && targetSpan > 1e-8 {
+		isTooSmall = targetSpan < (currentSpan / 12.0)
+	}
+
+	// 変更不要なら現状維持
+	if !isOut && !isTooSmall {
+		return currentMin, currentMax
+	}
+
+	// --- 新しい範囲を計算 ---
+	baseSpan := targetSpan * 3.0
+	if baseSpan < 1e-7 {
+		baseSpan = 1e-7
+	}
+
+	exponent := math.Floor(math.Log10(baseSpan))
+	fraction := baseSpan / math.Pow(10, exponent)
+	var snapFactor float64
+	if fraction <= 1.0 {
+		snapFactor = 1.0
+	} else if fraction <= 2.0 {
+		snapFactor = 2.0
+	} else if fraction <= 5.0 {
+		snapFactor = 5.0
+	} else {
+		snapFactor = 10.0
+	}
+	newSpan := snapFactor * math.Pow(10, exponent)
+
+	newMin := targetCenter - newSpan/2.0
+	newMax := targetCenter + newSpan/2.0
+
+	return newMin, newMax
+}
+
+func saveStepPlot(f func(float64) float64, data VizIterData, cfg Config, vXMin, vXMax, vYMin, vYMax float64) error {
+	p := plot.New()
+
+	// ズーム状態かどうか（タイトル用）
+	isZoomed := (vXMax - vXMin) < (cfg.PlotXMax-cfg.PlotXMin)*0.9
+
+	if isZoomed {
+		p.Title.Text = fmt.Sprintf("Step %02d (ZOOMED)\nRange: [%.4f, %.4f]", data.Iter, data.A, data.B)
+	} else {
+		p.Title.Text = fmt.Sprintf("Brent Step %02d", data.Iter)
+	}
+
+	p.X.Label.Text = "x"
+	p.Y.Label.Text = "f(x)"
+
+	// 1. 対象関数の描画
+	fn := plotter.NewFunction(f)
+	fn.Color = color.RGBA{B: 200, A: 255}
+	fn.Width = vg.Points(1.5)
+	fn.Samples = cfg.PlotSamples
+	fn.XMin = vXMin
+	fn.XMax = vXMax
+	p.Add(fn)
+
+	// 2. 3点 (x1, x2, x3) のプロット
+	pts := plotter.XYs{
+		{X: data.X1, Y: data.F1},
+		{X: data.X2, Y: data.F2},
+		{X: data.X3, Y: data.F3},
+	}
+	s, err := plotter.NewScatter(pts)
+	if err != nil {
+		return err
+	}
+	s.GlyphStyle.Radius = vg.Points(4)
+	s.GlyphStyle.Shape = draw.CircleGlyph{}
+	s.GlyphStyle.Color = color.RGBA{R: 255, A: 255}
+	p.Add(s)
+
+	// 最良点(x1)を目立たせる
+	bestPt := plotter.XYs{{X: data.X1, Y: data.F1}}
+	sb, err := plotter.NewScatter(bestPt)
+	if err != nil {
+		return err
+	}
+	sb.GlyphStyle.Radius = vg.Points(5)
+	sb.GlyphStyle.Shape = draw.RingGlyph{}
+	sb.GlyphStyle.Color = color.RGBA{R: 255, A: 255}
+	p.Add(sb)
+
+	// 3. 近似手法に応じた補助線
+	if strings.Contains(data.Method, "SPI") {
+		if isDistinctViz(data.X1, data.X2, data.X3) {
+			poly := getQuadraticFuncViz(data.X1, data.F1, data.X2, data.F2, data.X3, data.F3)
+			qFn := plotter.NewFunction(poly)
+			qFn.Color = color.RGBA{R: 100, G: 100, B: 100, A: 255}
+			qFn.LineStyle.Dashes = []vg.Length{vg.Points(4), vg.Points(4)}
+			qFn.Width = vg.Points(1)
+			qFn.Samples = cfg.PlotSamples
+			qFn.XMin = vXMin
+			qFn.XMax = vXMax
+			p.Add(qFn)
+			p.Legend.Add("Parabolic Fit", qFn)
+		}
+	} else {
+		// 黄金分割の線
+		vRange := vYMax - vYMin
+		vline, err := plotter.NewLine(plotter.XYs{
+			{X: data.X1, Y: vYMin - vRange},
+			{X: data.X1, Y: vYMax + vRange},
+		})
+		if err == nil {
+			vline.Color = color.RGBA{G: 180, R: 100, A: 255}
+			vline.LineStyle.Width = vg.Points(1.5)
+			vline.LineStyle.Dashes = []vg.Length{vg.Points(4), vg.Points(2)}
+			p.Add(vline)
+			p.Legend.Add("Golden Section", vline)
+		}
+	}
+
+	// 4. 軸範囲の適用
+	p.X.Min = vXMin
+	p.X.Max = vXMax
+	p.Y.Min = vYMin
+	p.Y.Max = vYMax
+
+	// --- 探索区間バー（X軸のみ）の描画 ---
+	yBarPos := vYMin + (vYMax-vYMin)*0.05
+	barColor := color.RGBA{B: 255, A: 255}
+
+	// 区間の線
+	intervalLine, err := plotter.NewLine(plotter.XYs{
+		{X: data.A, Y: yBarPos}, {X: data.B, Y: yBarPos},
+	})
+	if err == nil {
+		intervalLine.Color = barColor
+		intervalLine.Width = vg.Points(3)
+		p.Add(intervalLine)
+	}
+
+	// 【追加】区間の端点を示す目盛り (Tick marks)
+	// これにより「ここが端です」ということを明確にし，
+	// 赤点との位置関係の違和感を軽減する
+	tickLen := (vYMax - vYMin) * 0.02
+	tickA, _ := plotter.NewLine(plotter.XYs{
+		{X: data.A, Y: yBarPos - tickLen}, {X: data.A, Y: yBarPos + tickLen},
+	})
+	tickB, _ := plotter.NewLine(plotter.XYs{
+		{X: data.B, Y: yBarPos - tickLen}, {X: data.B, Y: yBarPos + tickLen},
+	})
+	tickA.Color = barColor
+	tickB.Color = barColor
+	tickA.Width = vg.Points(2)
+	tickB.Width = vg.Points(2)
+	p.Add(tickA, tickB)
+
+	p.Legend.Add("Target f(x)", fn)
+	p.Legend.Top = true
+	p.Legend.Left = true
+
+	fileName := fmt.Sprintf("brent-step-%02d.png", data.Iter)
+	return p.Save(8*vg.Inch, 5*vg.Inch, fileName)
+}
+
+func saveIntervalPlot(history []VizIterData, cfg Config) error {
+	p := plot.New()
+	p.Title.Text = "Convergence of Interval [a, b]"
+	p.X.Label.Text = "x value"
+	p.Y.Label.Text = "Iteration"
+
+	maxIter := float64(len(history))
+
+	for _, d := range history {
+		line, _ := plotter.NewLine(plotter.XYs{{X: d.A, Y: float64(d.Iter)}, {X: d.B, Y: float64(d.Iter)}})
+		line.Color = color.RGBA{G: 150, B: 150, A: 200}
+		p.Add(line)
+
+		dot, _ := plotter.NewScatter(plotter.XYs{{X: d.X1, Y: float64(d.Iter)}})
+		dot.GlyphStyle.Radius = vg.Points(2)
+		dot.GlyphStyle.Color = color.RGBA{R: 200, A: 255}
+		p.Add(dot)
+	}
+
+	p.Y.Min = maxIter + 1
+	p.Y.Max = 0
+	p.X.Min, p.X.Max = cfg.PlotXMin, cfg.PlotXMax
+
+	return p.Save(6*vg.Inch, 6*vg.Inch, "brent-interval.png")
+}
+
+// ==========================================
+// Brent法の実装
+// ==========================================
+
+// floatsEqual checks if two floats are approximately equal.
+func floatsEqual(a, b, epsilon float64) bool {
+	return math.Abs(a-b) <= epsilon
+}
+
+func BrentMinViz(f func(float64) float64, a, b, tol float64, maxIter int, callback func(VizIterData)) (*VizResult, error) {
+	const goldenRatio = 0.3819660112501051
+	const epsilon = 1e-10 // 浮動小数点比較用のイプシロン
+
+	v := a + goldenRatio*(b-a)
+	w := v
+	x := v
+	e := 0.0
+
+	fv := f(v)
+	fw := fv
+	fx := fv
+
+	for iter := 1; iter <= maxIter; iter++ {
+		xm := 0.5 * (a + b)
+		tol1 := tol*math.Abs(x) + epsilon
+		tol2 := 2.0 * tol1
+
+		if math.Abs(x-xm) <= (tol2 - 0.5*(b-a)) {
+			return &VizResult{X: x, F: fx, Iterations: iter}, nil
+		}
+		if (b - a) < tol {
+			return &VizResult{X: x, F: fx, Iterations: iter}, nil
+		}
+
+		d := 0.0
+		step := 0.0
+		methodName := "Golden Section"
+
+		if math.Abs(e) > tol1 {
+			r := (x - w) * (fx - fv)
+			q := (x - v) * (fx - fw)
+			p := (x-v)*q - (x-w)*r
+			q = 2.0 * (q - r)
+
+			if q > 0 {
+				p = -p
+			}
+			q = math.Abs(q)
+
+			etemp := e
+			e = step
+
+			// SPI (Successive Parabolic Interpolation) の適用可否判定
+			if math.Abs(p) >= math.Abs(0.5*q*etemp) || p <= q*(a-x) || p >= q*(b-x) {
+				// SPI条件を満たさない場合は黄金分割へフォールバック
+				if x >= xm {
+					e = a - x
+				} else {
+					e = b - x
+				}
+				step = goldenRatio * e
+				methodName = "Golden Section (Fallback)"
+			} else {
+				// SPI適用
+				step = p / q
+				d = step
+
+				if math.Abs(d) < tol1 {
+					if d >= 0 {
+						step = tol1
+					} else {
+						step = -tol1
+					}
+				}
+				methodName = "SPI (Parabolic)"
+			}
+		} else {
+			// 黄金分割
+			if x >= xm {
+				e = a - x
+			} else {
+				e = b - x
+			}
+			step = goldenRatio * e
+			methodName = "Golden Section"
+		}
+
+		u := 0.0
+		if math.Abs(step) >= tol1 {
+			u = x + step
+		} else {
+			if step > 0 {
+				u = x + tol1
+			} else {
+				u = x - tol1
+			}
+		}
+
+		fu := f(u)
+
+		// 記録
+		rec := VizIterData{
+			Iter: iter, A: a, B: b,
+			X1: x, F1: fx,
+			X2: w, F2: fw,
+			X3: v, F3: fv,
+			Method: methodName,
+		}
+		if callback != nil {
+			callback(rec)
+		}
+
+		// Brent法の状態更新ロジック
+		// 浮動小数点の比較には epsilon を考慮したヘルパーを使用
+		if fu <= fx {
+			if u >= x {
+				a = x
+			} else {
+				b = x
+			}
+			v = w
+			fv = fw
+			w = x
+			fw = fx
+			x = u
+			fx = fu
+		} else {
+			if u < x {
+				a = u
+			} else {
+				b = u
+			}
+
+			// 修正: == 比較を floatsEqual に置換
+			if fu <= fw || floatsEqual(w, x, epsilon) {
+				v = w
+				fv = fw
+				w = u
+				fw = fu
+			} else if fu <= fv || floatsEqual(v, x, epsilon) || floatsEqual(v, w, epsilon) {
+				v = u
+				fv = fu
+			}
+		}
+	}
+
+	return &VizResult{X: x, F: fx, Iterations: maxIter}, nil
+}
+
+// ==========================================
+// ユーティリティ
+// ==========================================
+
+func getQuadraticFuncViz(x1, y1, x2, y2, x3, y3 float64) func(float64) float64 {
+	return func(x float64) float64 {
+		// Note: isDistinctViz でチェック済み前提だが，
+		// 分母が極端に小さい場合への安全策が必要な場合はここに追加する
+		l1 := ((x - x2) * (x - x3)) / ((x1 - x2) * (x1 - x3))
+		l2 := ((x - x1) * (x - x3)) / ((x2 - x1) * (x2 - x3))
+		l3 := ((x - x1) * (x - x2)) / ((x3 - x1) * (x3 - x2))
+		return y1*l1 + y2*l2 + y3*l3
+	}
+}
+
+func isDistinctViz(x1, x2, x3 float64) bool {
+	const eps = 1e-9
+	return math.Abs(x1-x2) > eps && math.Abs(x2-x3) > eps && math.Abs(x1-x3) > eps
+}

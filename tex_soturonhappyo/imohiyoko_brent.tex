@@ -1,0 +1,76 @@
+%
+% 注意 EWinTeX3 では，TeXを掛ける　T　ボタンの後，
+% 外部アプリ中の「1 dvi > PDF (sample)」を 呼び出す．　TP　ボタンは使わない．
+% プレビューは，dvioutや Acrobat や Edge を使わずに，SumatoraPDF を用いる．
+%
+\documentclass[dvipdfmx,12pt,aspectratio=169]{beamer}
+%aspectratioは横縦比16:9，1610とすれば16:10に．省けば4:3に．
+%ノートPCの画面サイズを調べて、合わせましょう．
+%フォントサイズは11pt,12ptなどもありますが，12ptか14ptが良いでしょう
+\usepackage{graphicx}
+\usepackage{xcolor} %tcolorboxで色を変えたから
+\usepackage{bxdpx-beamer}% dvipdfmxなので必要
+\usepackage{pxjahyper}% 日本語で'しおり'したい
+\usepackage{minijs}% min10ヤダ
+\renewcommand{\kanjifamilydefault}{\gtdefault}% 既定をゴシック体に
+
+\usetheme{Boadilla}
+%themeは https://tex.y-misc.org/beamer/theme.html を参照
+\setbeamercovered{transparent}%消えている文字をうっすらと表示する
+\usepackage{tcolorbox} %色を変えたboxを使うなら．
+
+\usepackage{amsmath} %align環境などの数式環境に
+\usepackage{amssymb} %特殊な数式シンボルに必須
+\usepackage{amsthm} %theorem環境に．
+%上の３つは{amsmath,amssymb,amsthm}とまとめても．
+\renewcommand\proofname{\bf 証明} %Proofではなく証明
+
+
+\usepackage{tikz}%お絵描きするなら必要
+\usetikzlibrary{calc, intersections, through, backgrounds} % tikzの拡張ライブラリ
+
+
+\theoremstyle{definition} %見出しは太字，本文で斜体を使わない
+\newtheorem{dfn}{定義}
+\newtheorem{thm}[dfn]{定理}
+\newtheorem{prp}[dfn]{命題}
+\newtheorem{lmm}[dfn]{補題}
+
+
+\definecolor{forestgreen}{rgb}{0.13, 0.55, 0.13}
+%forestgreen色を使いたかった
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%プリアンブル終り%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\title{微分を使わない極値・最小値探索手法}
+\subtitle{Brent法のアルゴリズムと数学的性質}
+\author{imohiyoko}
+\date{2026年 02月 12 日(木)}
+
+
+\begin{document}
+
+% =========================================================
+% タイトルページ
+% =========================================================
+\maketitle
+
+% =========================================================
+% 目次
+% =========================================================
+\begin{frame}
+ \frametitle{本発表の流れ}
+ \tableofcontents
+\end{frame}
+
+% =========================================================
+% 各章の読み込み
+% =========================================================
+\input{chapters/00} % はじめに
+\input{chapters/01} % 黄金分割法の歴史と収束速度の証明
+\input{chapters/02} % 放物線補間法のアルゴリズムと不安定さを示す
+\input{chapters/03} % ハイブリット手法としてBrent法を紹介
+\input{chapters/04} % 黄金分割法 VS Brent法
+
+\end{document}

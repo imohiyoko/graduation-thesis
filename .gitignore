@@ -1,0 +1,29 @@
+# LaTeX build artifacts
+*.aux
+*.log
+*.toc
+*.nav
+*.snm
+*.out
+*.vrb
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+*.bbl
+*.blg
+*.dvi
+*.pdf
+
+# Go build artifacts
+*.exe
+*.test
+*.out
+
+# OS / editor junk
+desktop.ini
+Thumbs.db
+.DS_Store
+*.code-workspace
+
+# Archives
+*.zip
